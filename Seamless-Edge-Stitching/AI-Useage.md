@@ -131,6 +131,30 @@ Does opencv for c++ have an existing method to find the cross points of two quad
 
 ## AI Response
 
+Not as a dedicated "edge crossing points only" function, but these in the imgproc module (present in 4.11) come close:
+
+1. **`cv::intersectConvexConvex`**
+   ```cpp
+   float cv::intersectConvexConvex(InputArray p1, InputArray p2,
+                                   OutputArray p12, bool handleNested = true);
+   ```
+   It returns the intersection area, and `p12` receives the vertices of the overlap polygon. Those vertices include the points where the edges cross, plus any corners of one quad that lie inside the other. Both quads must be **convex**.
+
+2. **`cv::rotatedRectangleIntersection`**
+   ```cpp
+   int cv::rotatedRectangleIntersection(const RotatedRect& r1, const RotatedRect& r2,
+                                        OutputArray intersectingRegion);
+   ```
+   This only works if the quads are rotated rectangles. It returns `INTERSECT_NONE`, `INTERSECT_PARTIAL`, or `INTERSECT_FULL`, and the region's vertices work the same way as above.
+
+To keep only the true edge crossings, filter out any output vertex that lies inside the other quad, using `cv::pointPolygonTest` (a result of roughly 0 means the point is on the edge). Another option is to test each pair of the 4×4 edges with a short segment-segment intersection routine. OpenCV doesn't expose a public segment intersection function. For non-convex quads, neither built-in function applies, so the manual 16-pair edge test is the way to go.
+
+# Prompt 4
+
+Okay I want to figure out how to extract the area where two images overlap. I believe this can be done with the bitwise_and and bitwise_not opencv methods but I want to check is there is a simpler option.
+
+## Prompt 4 Response
+
 `bitwise_and` alone finds the overlap. `bitwise_not` is only needed for the non-overlapping parts (A but not B). Simpler options exist depending on the shape of the regions.
 
 **1. Axis-aligned rectangles: `Rect & Rect`**
