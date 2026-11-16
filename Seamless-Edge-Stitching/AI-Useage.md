@@ -212,3 +212,47 @@ cv::Rect box = cv::boundingRect(overlap);  // crop region
 - Masks must be single channel, 0/255, and the same size.
 - Applying `&` to raw images ANDs the pixel bits and gives meaningless values.
 - Use `INTER_NEAREST` when warping masks so the edges stay 0/255.
+
+# Prompt 5
+
+OpenCV, C++ context. I want to add color channels together but first I need to separate them, I don't understand if I should use split() or transform() and if either option is better.
+
+## Prompt 5 Response
+
+**The short answer:** if the only goal is to sum the channels, use `cv::transform()` and skip separating them. If each channel needs its own processing before the sum, use `cv::split()`.
+
+**How they differ**
+
+- `cv::split()` copies a multi-channel `Mat` into separate single-channel `Mat`s. It does no math. Adding them needs another call such as `cv::add()`.
+- `cv::transform()` multiplies each pixel's channel vector by a matrix. Each output channel is a weighted sum of the input channels. Adding channels is just a matrix of ones, so it all happens in one pass.
+
+**Option 1: `transform` (one step, no extra buffers)**
+```cpp
+cv::Mat src;  // CV_8UC3
+cv::Mat m = (cv::Mat_<float>(1, 3) << 1, 1, 1);  // 1 output row = B + G + R
+cv::Mat sum;
+cv::transform(src, sum, m);  // result: CV_8UC1
+```
+
+**Option 2: `split` + `add`**
+```cpp
+std::vector<cv::Mat> ch;
+cv::split(src, ch);
+cv::Mat sum;
+cv::add(ch[0], ch[1], sum, cv::noArray(), CV_32S);
+cv::add(sum, ch[2], sum, cv::noArray(), CV_32S);
+```
+
+**Overflow**
+
+With 8-bit input, B+G+R can reach 765. Both functions saturate to the output depth, so with `CV_8U` output anything over 255 gets clipped. There are two ways around this:
+- Convert first: `src.convertTo(src32, CV_32FC3);` then run `transform`. The output will be `CV_32FC1`.
+- Or scale the weights, for example `1/3.0` each to get the average, so the result stays in range.
+
+With `split`, the `dtype` argument of `cv::add` handles it, as in the example above.
+
+**Which is better**
+
+- `transform` is faster and uses less memory, since it makes one pass and allocates no intermediate per-channel `Mat`s. It also handles weighted sums directly, for example `0.114, 0.587, 0.299` for a luminance-style mix.
+- `split` makes sense when the channels need different treatment before combining, such as thresholding one channel or blurring another, or when individual channels need inspecting.
+

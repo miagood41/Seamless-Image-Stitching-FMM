@@ -1,33 +1,44 @@
-
-
 #include "Align.h"
+#include <opencv2/imgproc.hpp>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/features2d.hpp>
+#include <iostream>
+#include <stdexcept>
+#include <string>
 
 namespace align
 {
 	// Matching and feature detection using SIFT
-	ImageFeatures detectFeatures(const Mat& img1, const Mat& img2)
+	ImageFeatures detectFeatures(const Mat& leftImage, const Mat& rightImage)
 	{
 		ImageFeatures keyFeatures;
+		Mat descriptor1, descriptor2;
 
-		// Initialize SIFT detector:  SIFT::create()
 		Ptr<Feature2D> detector = SIFT::create();
-
-		// Detect keypoints and compute descriptors
-		detector->detectAndCompute(img1, noArray(), keyFeatures.keypoints1, keyFeatures.descriptor1);
-		detector->detectAndCompute(img2, noArray(), keyFeatures.keypoints2, keyFeatures.descriptor2);
+		detector->detectAndCompute(leftImage, noArray(), keyFeatures.keypoints1, descriptor1);
+		detector->detectAndCompute(rightImage, noArray(), keyFeatures.keypoints2, descriptor2);
 		
-		// Match descriptors with Brute-Forch Matcher
 		Ptr<BFMatcher> matcher = BFMatcher::create(detector->defaultNorm(), true);
-		matcher->match(keyFeatures.descriptor1, keyFeatures.descriptor2, keyFeatures.matches);
+		matcher->match(descriptor1, descriptor2, keyFeatures.matches);
 		
-		// return a Mat that stitchPair can send to estimateHomography
 		return keyFeatures;
-
 	}
 
-	Mat estimateHomography(ImageFeatures keyFeatures)
+	Mat estimateHomography(const ImageFeatures& keyFeatures)
 	{
-		Mat homography = findHomography(keyFeatures.descriptor1, keyFeatures.descriptor2, RANSAC);
+		vector<Point2f> leftPoints;
+		vector<Point2f> rightPoints;
+	
+		// Check all the matches, add the keypoint1 position to the leftPoint list
+		// and the position of the keypoint2 match to the rightPoint list.
+		for (int i = 0; i < keyFeatures.matches.size(); i++)
+		{
+			DMatch match = keyFeatures.matches[i];
+			leftPoints.push_back(keyFeatures.keypoints1[match.queryIdx].pt);
+			rightPoints.push_back(keyFeatures.keypoints2[match.trainIdx].pt);
+		}
+
+		Mat homography = findHomography(leftPoints, rightPoints, RANSAC);
 		return homography;
 	}
 
@@ -39,35 +50,25 @@ namespace align
 			Point2f(img.cols, img.rows),
 			Point2f(0.0, img.rows)
 		};
-
 		return corners;
 	}
 
-	ImageCanvas warpImage(const Mat& img1, const Mat& img2, Mat homography)
+	ImageCanvas warpImage(const Mat& leftImage, const Mat& rightImage, Mat& homography)
 	{
 		ImageCanvas canvasData;
 
-		canvasData.placedRight;
-		canvasData.warpedLeft;
-
-		canvasData.rightCorners;
-		canvasData.warpedCorners;
-		canvasData.translation;
-
-		vector<Point2f> leftImageCorners;
-
-		leftImageCorners  = findCorners(img1);
-		canvasData.rightCorners = findCorners(img2);
+		canvasData.leftCorners = findCorners(leftImage);
+		canvasData.rightCorners  = findCorners(rightImage);
 
 		// Warp the left image's corners into the right image's frame
-		perspectiveTransform(leftImageCorners, canvasData.warpedCorners, homography);
+		perspectiveTransform(canvasData.leftCorners, canvasData.leftCorners, homography);
 
 		vector<Point2f> combinedCorners;
-		combinedCorners.reserve(canvasData.warpedCorners.size() + canvasData.rightCorners.size() );
-		combinedCorners.insert( combinedCorners.end(), canvasData.warpedCorners.begin(), canvasData.warpedCorners.begin() );
-		combinedCorners.insert( combinedCorners.end(), canvasData.rightCorners.begin(),  canvasData.rightCorners.begin() );
+		combinedCorners.reserve(canvasData.leftCorners.size() + canvasData.rightCorners.size() );
+		combinedCorners.insert( combinedCorners.end(), canvasData.leftCorners.begin(), canvasData.leftCorners.end() );
+		combinedCorners.insert( combinedCorners.end(), canvasData.rightCorners.begin(),  canvasData.rightCorners.end() );
 
-		// Calculate the canvas size
+		// Calculates the smallest rectangle that contains all 8 corner points
 		Rect canvasBoundary = boundingRect(combinedCorners);
 		Size canvasSize = canvasBoundary.size();
 
@@ -77,70 +78,123 @@ namespace align
 		canvasData.translation.at<double>(1, 2) = -canvasBoundary.y;
 
 		// Warp and/or shift both images into postive canvas space to be canvas size images
-		warpPerspective(img1, canvasData.warpedLeft, canvasData.translation * homography, canvasBoundary.size());
-		warpPerspective(img2, canvasData.placedRight, homography, canvasSize);
+		warpPerspective(leftImage, canvasData.leftImage, canvasData.translation * homography, canvasSize);
+		warpPerspective(rightImage, canvasData.rightImage, canvasData.translation, canvasSize);
 
-		// Update warped and left image's corners
-		perspectiveTransform(canvasData.warpedCorners, canvasData.warpedCorners, canvasData.translation);
+		// Update warped and right image's corners
+		perspectiveTransform(canvasData.leftCorners, canvasData.leftCorners, canvasData.translation);
 		perspectiveTransform(canvasData.rightCorners, canvasData.rightCorners, canvasData.translation);
 
 		return canvasData;
 	}
 
-	vector<Point2f> findOverlapPoly(ImageCanvas canvasData)
-	{
-		// Finds the polygon created by the two overlapping sets of corner points
-		vector<Point2f> overlapPoly;
-		if (isContourConvex(canvasData.warpedCorners) && isContourConvex(canvasData.rightCorners))
-		{
-			intersectConvexConvex(canvasData.warpedCorners, canvasData.rightCorners, overlapPoly);
-		}
-		
-		// The overlap points are pixels, which require integer values
-		vector<Point> overlapPoints;
-		for (int i = 0; i < overlapPoly.size(); i++)
-		{
-			int x = cvRound(overlapPoly[i].x);
-			int y = cvRound(overlapPoly[i].y);
-			overlapPoints.push_back(Point(x, y));
-		}
-
-		// Draws a white polygon (onto ?)
-		Mat mask = Mat::zeros(canvasData.warpedLeft.size(), CV_8UC1);
-		fillConvexPoly(mask, overlapPoints, Scalar(255));
-
-		// Copy
-		Mat leftOverlap, rightOverlap;
-		canvasData.warpedLeft.copyTo(leftOverlap, mask);
-		canvasData.placedRight.copyTo(rightOverlap, mask);
-
-		// Crop each canvas size image to just the region of interest rectangle
-		Rect ROI = boundingRect(mask);
-		leftOverlap = leftOverlap(ROI).clone();
-		rightOverlap = rightOverlap(ROI).clone();
-		mask = mask(ROI).clone();
-	}
-
-	// returns the 4 points that make up the overlap region
-	vector<Point2f> findCrossPoints(vector<Point2f> overlapPoly)
+	// Returns the points where the overlap's verticies cross the two image's boundaries.
+	vector<Point2f> findCrossPoints(vector<Point2f> overlap, vector<Point2f> leftCorners, vector<Point2f> rightCorners)
 	{
 		vector<Point2f> crossPoints;
 
+		// Check each vertex of the overlap quad
+		for (int i = 0; i < overlap.size(); i++)
+		{
+			bool isCorner = false;
+
+			// Compare this vertex against all 8 corners of the images
+			// If its less than half a pixel away from a corner then its a corner, not a crosspoint.
+			for (int j = 0; j < 4; j++)
+			{
+				if (norm(overlap[i] - leftCorners[j]) < 0.5 || norm(overlap[i] - rightCorners[j]) < 0.5)
+				{
+					isCorner = true;
+				}
+			}
+
+			// Add the vertices that aren't corners
+			if (!isCorner) {
+				crossPoints.push_back(overlap[i]);
+			}
+		}
 		return crossPoints;
 	}
 
-	// Coordinator
-	void alignImage(const Mat& img1, const Mat& img2)
+	// overlapVertices are the corners of the overlap shape as decimals
+	// pixelVertices are the corners of the overlap shape as pixels
+	ImageOverlap findOverlap(const ImageCanvas& canvasData)
 	{
-		ImageFeatures keyFeatures;
+		// Finds the shape created by the two overlapping sets of corner points
+		vector<Point2f> overlapVertices;
+		if (isContourConvex(canvasData.leftCorners) && isContourConvex(canvasData.rightCorners))
+		{
+			float overlapArea = intersectConvexConvex(canvasData.leftCorners, canvasData.rightCorners, overlapVertices);
+			if (overlapArea <= 0)
+			{
+				throw std::runtime_error("Images do not overlap.");
+			}
+			std::cout << "Overlap coordinates: " << Mat(overlapVertices) << std::endl;
+		} 
+		else
+		{
+			throw std::runtime_error("Input images must be convex.");
+		}
+		
+		// The overlap points are pixels, which require integer values so
+		// round to the nearest integer.
+		vector<Point> pixelVertices;
+		for (int i = 0; i < overlapVertices.size(); i++)
+		{
+			int x = cvRound(overlapVertices[i].x);
+			int y = cvRound(overlapVertices[i].y);
+			pixelVertices.push_back(Point(x, y));
+		}
+
+		vector<Point2f> crossPoints;
+		crossPoints = findCrossPoints(overlapVertices, canvasData.leftCorners, canvasData.rightCorners);
+		if (crossPoints.size() != 2)
+		{
+			throw std::runtime_error("Exactly 2 cross points are allowed, " + std::to_string(crossPoints.size()) + " were found.");
+		}
+
+		// Draws a white shape where the boundaries overlap, on a new canvas sized Mat 
+		Mat regionMask = Mat::zeros(canvasData.leftImage.size(), CV_8UC1);
+		fillConvexPoly(regionMask, pixelVertices, Scalar(255));
+
+		// Copy the overlap region of each image to a new canvas size Mat
+		Mat leftImageCrop, rightImageCrop;
+		canvasData.leftImage.copyTo(leftImageCrop, regionMask);
+		canvasData.rightImage.copyTo(rightImageCrop, regionMask);
+
+		// Crop to just the region of interest
+		Rect ROI = boundingRect(regionMask);
+		leftImageCrop  = leftImageCrop(ROI).clone();
+		rightImageCrop = rightImageCrop(ROI).clone();
+		regionMask = regionMask(ROI).clone();
+
+		ImageOverlap result;
+		result.ROI         = ROI;
+		result.imageMask   = regionMask;
+		result.leftImage   = leftImageCrop;
+		result.rightImage  = rightImageCrop;
+
+		Point2f origin = Point2f(ROI.tl());
+		result.seamStart   = crossPoints[0] - origin;
+		result.seamEnd     = crossPoints[1] - origin;
+
+		return result;
+	}
+
+	// Coordinator
+	ImageOverlap alignImages(const Mat& leftImage, const Mat& rightImage)
+	{
+		ImageFeatures features;
 		Mat homography;
 		ImageCanvas canvasData;
 		vector<Point2f> crossPoints;
+		ImageOverlap croppedImages;
 
-		keyFeatures = detectFeatures(img1, img2);
-		homography  = estimateHomography(keyFeatures);
-		canvasData  = warpImage(img1, img2, homography);
-		findOverlapPoly();
-		crossPoints = findCrossPoints(vector<Point2f> overlap);
+		features      = detectFeatures(leftImage, rightImage);
+		homography    = estimateHomography(features);
+		canvasData    = warpImage(leftImage, rightImage, homography);
+		croppedImages = findOverlap(canvasData);
+
+		return croppedImages;
 	}
 }

@@ -1,41 +1,43 @@
 #pragma once
 #include <opencv2/core.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/xfeatures2d.hpp>
-#include <opencv2/opencv_modules.hpp>
-#include <iostream>
 #include <vector>
 using namespace cv;
 using std::vector;
-using std::string;
 
+// Alignment: 
 namespace align {
 
 	struct ImageFeatures
 	{
 		vector<DMatch> matches;
-		vector<KeyPoint> keypoints1, keypoints2;
-
-		Mat descriptor1, descriptor2;
+		vector<KeyPoint> keypoints1;
+		vector<KeyPoint> keypoints2;
 	};
-	// two sets of corners, two image placed in canvas space, translation matrix
+	
 	struct ImageCanvas
 	{
-		Mat warpedLeft;  // on canvas, warped
-		Mat placedRight; // on canvas, unwarped
+		Mat leftImage;   // warpedImage
+		Mat rightImage;  // placedImage
 		Mat translation;
-		vector<Point2f> warpedCorners; 
+		vector<Point2f> leftCorners; // warpedCorners
 		vector<Point2f> rightCorners;
 	};
 
-	Mat estimateHomography(ImageFeatures keyFeatures);
+	struct ImageOverlap
+	{
+		Rect ROI;
+
+		Mat imageMask;
+		Mat leftImage;  // warpedImage
+		Mat rightImage;
+		
+		Point seamStart;
+		Point seamEnd;
+	};
 
 	ImageFeatures detectFeatures(const Mat& img1, const Mat& img2);
-	ImageCanvas warpImage(const Mat& img1, const Mat& img2, Mat homography);
-	
-	void alignImages(const Mat& img1, const Mat& img2);
-	vector<Point2f> findCrossPoints();
-
+	Mat estimateHomography(const ImageFeatures& features);
+	ImageCanvas warpImage(const Mat& img1, const Mat& img2, Mat& homography);
+	ImageOverlap findOverlap(const ImageCanvas& canvasData);
+	ImageOverlap alignImages(const Mat& img1, const Mat& img2);
 }

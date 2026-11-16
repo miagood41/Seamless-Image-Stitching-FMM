@@ -21,6 +21,12 @@
     <ClCompile Include="Align.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Tests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FeatureMap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -33,6 +39,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Align.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FeatureMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

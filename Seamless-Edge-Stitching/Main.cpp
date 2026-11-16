@@ -1,5 +1,6 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include <opencv2/opencv_modules.hpp>
 #include <iostream>
@@ -7,12 +8,16 @@
 #include <vector>
 
 #include "Align.h"
+#include "FeatureMap.h"
 using namespace cv;
 using std::vector;
 using std::string;
 
 const int SCALE = 4;
 
+namespace tests {
+	void testAlign(const string& leftPath, const string& rightPath);
+}
 
 /*
  * @brief Loads images from the working directory and converts them to grayscale
@@ -44,38 +49,15 @@ Mat stitchPair(const Mat& img1, const Mat& img2)
 {
 	Mat stitchedImg;
 
-	align::alignImages(img1, img2);
+	align::ImageOverlap alignImg;
+	alignImg = align::alignImages(img1, img2);
+
+	features::FeatureMaps costMap;
+	features::calculateFeatureMaps(alignImg.leftImage, alignImg.rightImage, alignImg.imageMask);
 
 	return stitchedImg;
 }
 
-
-void extractImageOverlap()
-{
-	vector<Point> overlapPoints;
-	for (int i = 0; i < overlap)
-
-	Mat mask = zeros()
-	// Create an overlap mask, this is the area where the two image overlap, is white Scalar(255).
-	fillConvexPoly(mask, poly, Scalar(255));
-}
-
-void calculateFeatureMaps() {}
-
-void calculateColorMap() {}
-
-void calculateEdgeMap() {}
-
-void calculateTextureMap() {}
-
-void calculateSaliencyMap() {}
-
-void createCostMap()
-{
-	// Weighted map, can use 32bit maybe 64bit if needed
-	// Created from combining 4 feature maps
-	Mat costMap = Mat::zeros(4, 4, CV_32F); // replace 4 with actual size
-}
 
 void buildPotentialField() {}
 
@@ -87,16 +69,15 @@ void blendImages() {}
 
 void outputStitched(Mat& img)
 {
-	imwrite("output.jpg", img);
+	//imwrite("output.jpg", img);
 }
-
 
 ////////////////////////////////////////  MAIN   ////////////////////////////////////////
 int main() 
 {
 	// Load two images, assumed to be overlapping with large parallax
-	string filepath1 = "bonsai.jpeg";
-	string filepath2 = "bonsai.jpeg";
+	string filepath1 = "001.jpg";
+	string filepath2 = "002.jpg";
 	Mat img1, img2, output;
 	if (!loadImages(filepath1, filepath2, img1, img2))
 	{
@@ -104,8 +85,13 @@ int main()
 	}
 
 	output = stitchPair(img1, img2);
-	outputStitched(output);
-	imshow("Stitched Image", output);
+	
+	// Test Alignment step
+	//tests::testAlign(filepath1, filepath2);
+
+	// Output result
+	//outputStitched(output);
+	//imshow("Stitched Image", output);
 
 	return 0;
 }
