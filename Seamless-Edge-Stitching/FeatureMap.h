@@ -15,16 +15,14 @@ namespace features {
 		Mat saliencyMap;
 	};
 
-	void calculateFeatureMaps(Mat& leftImage, Mat& rightImage, Mat& imageMask); // called from stitchPair in main
+	int otsuThreshold(const Mat& image, const Mat& imageMask, int maxLevel);
+
+	FeatureMaps calculateFeatureMaps(Mat& leftImage, Mat& rightImage, Mat& imageMask);
 
 	Mat calculateColorMap(Mat& leftImage, Mat& rightImage, Mat& imageMask);
-
-	void calculateEdgeMap();
-
-	void calculateTextureMap();
-
-	void calculateSaliencyMap();
-
-	void createCostMap();
+	Mat calculateEdgeMap(Mat& leftImage, Mat& rightImage, Mat& imageMask);
+	Mat calculateTextureMap();
+	Mat calculateSaliencyMap();
+	Mat createCostMap();
 
 }
