@@ -27,6 +27,15 @@
     <ClCompile Include="FeatureMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PotentialField.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Seam.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Blend.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
@@ -42,6 +51,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FeatureMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Seam.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PotentialField.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Blend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

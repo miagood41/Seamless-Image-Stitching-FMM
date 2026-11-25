@@ -113,7 +113,7 @@ namespace features
 		double strength = 0.8;   // total strength
 
 		Mat gaussian = getGaussianKernel(2 * radius + 1, spread, CV_64F);
-		std::cout << "gaussian: " << gaussian << std::endl;
+		//std::cout << "gaussian: " << gaussian << std::endl;
 		Mat weights = gaussian * gaussian.t();
 		weights.at<double>(radius, radius) = 0.0;
 		weights *= strength / sum(weights)[0];
@@ -142,8 +142,6 @@ namespace features
 		// Merge the left and right edge maps per pixel by taking the maximum
 		Mat edgeMap;
 		max(leftEdges, rightEdges, edgeMap);
-		imshow("Edge Map", edgeMap);
-		waitKey(0);
 		return edgeMap;
 	}
 

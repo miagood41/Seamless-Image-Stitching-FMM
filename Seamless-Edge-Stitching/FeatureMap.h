@@ -3,7 +3,6 @@
 #include <vector>
 using namespace cv;
 using std::vector;
-
  
 namespace features {
 

@@ -1,7 +1,10 @@
 #include "Align.h"
+#include "FeatureMap.h"
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/photo.hpp>
+#include <opencv2/saliency.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -10,42 +13,94 @@ using std::endl;
 using std::string;
 using std::runtime_error;
 
-void testAlign(const string& leftPath, const string& rightPath)
+namespace tests
 {
-	Mat leftImage = imread(leftPath);
-	Mat rightImage = imread(rightPath);
-	if (leftImage.empty() || rightImage.empty())
+	void testAlign(const string& leftPath, const string& rightPath)
 	{
-		cout << "Could not load images." << endl;
-		return;
+		Mat leftImage = imread(leftPath);
+		Mat rightImage = imread(rightPath);
+		if (leftImage.empty() || rightImage.empty())
+		{
+			cout << "Could not load images." << endl;
+			return;
+		}
+
+		try
+		{
+			align::ImageOverlap overlap = align::alignImages(leftImage, rightImage);
+			cout << "ROI: " << overlap.ROI << endl;
+			cout << "Seam start: " << overlap.seamStart << ", seam end: " << overlap.seamEnd << endl;
+
+			Mat view = overlap.leftImage.clone();
+			circle(view, overlap.seamStart, 6, Scalar(0, 255, 255), 2);
+			circle(view, overlap.seamEnd, 6, Scalar(0, 255, 255), 2);
+			imshow("Left overlap", view);
+			imshow("Right overlap", overlap.rightImage);
+			imshow("Mask", overlap.imageMask);
+			waitKey(0);
+		}
+		catch (const runtime_error& e)
+		{
+			cout << "Stopped: " << e.what() << endl;
+		}
 	}
 
-	try
+	// Builds the color map, then shows and saves it
+	void testColorMap(align::ImageOverlap& overlap)
 	{
-		align::ImageOverlap overlap = align::alignImages(leftImage, rightImage);
-		cout << "ROI: " << overlap.ROI << endl;
-		cout << "Seam start: " << overlap.seamStart << ", seam end: " << overlap.seamEnd << endl;
-
-		Mat view = overlap.leftImage.clone();
-		circle(view, overlap.seamStart, 6, Scalar(0, 255, 255), 2);
-		circle(view, overlap.seamEnd, 6, Scalar(0, 255, 255), 2);
-		imshow("Left overlap", view);
-		imshow("Right overlap", overlap.rightImage);
-		imshow("Mask", overlap.imageMask);
-		waitKey(0);
+		Mat colorMap = features::calculateColorMap(overlap.leftImage, overlap.rightImage, overlap.imageMask);
+		imwrite("OutputImages/color_map.png", colorMap);
+		imshow("Color map", colorMap);
 	}
-	catch (const runtime_error& e)
+
+	// Builds the edge map, then shows and saves it
+	void testEdgeMap(align::ImageOverlap& overlap)
 	{
-		cout << "Stopped: " << e.what() << endl;
+		Mat edgeMap = features::calculateEdgeMap(overlap.leftImage, overlap.rightImage, overlap.imageMask);
+		imwrite("OutputImages/edge_map.png", edgeMap);
+		imshow("Edge map", edgeMap);
 	}
-}
 
-void testFeatures(Mat& leftImage, Mat& rightImage, Mat& imageMask) 
-{
-	Mat diffMap;
-	absdiff(leftImage, rightImage, diffMap);
-	imshow("Difference Map", diffMap);
-	imshow("Left Image", leftImage);
-	imshow("Right Image", rightImage);
-	waitKey(0);
+	// Builds the texture map, then shows and saves it
+	void testTextureMap(align::ImageOverlap& overlap)
+	{
+	}
+
+	// Builds the saliency map, then shows and saves it
+	void testSaliencyMap(align::ImageOverlap& overlap)
+	{
+	}
+
+	void testFeatures(const string& leftPath, const string& rightPath)
+	{
+		Mat leftImage = imread(leftPath);
+		Mat rightImage = imread(rightPath);
+		if (leftImage.empty() || rightImage.empty())
+		{
+			cout << "Could not load images." << endl;
+			return;
+		}
+
+		try
+		{
+			align::ImageOverlap img = align::alignImages(leftImage, rightImage);
+
+			Mat colorMap = features::calculateColorMap(img.leftImage, img.rightImage, img.imageMask);
+			Mat edgeMap  = features::calculateEdgeMap(img.leftImage, img.rightImage, img.imageMask);
+
+			imwrite("OutputImages/left_overlap.png", img.leftImage);
+			imwrite("OutputImages/right_overlap.png", img.rightImage);
+
+			testColorMap(img);
+			testEdgeMap(img);
+			testTextureMap(img);
+			testSaliencyMap(img);
+			waitKey(0);
+		}
+		catch (const runtime_error& e)
+		{
+			cout << "Stopped: " << e.what() << endl;
+		}
+	}
+
 }

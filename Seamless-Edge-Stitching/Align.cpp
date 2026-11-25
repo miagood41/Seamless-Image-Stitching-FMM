@@ -129,7 +129,7 @@ namespace align
 			{
 				throw std::runtime_error("Images do not overlap.");
 			}
-			std::cout << "Overlap coordinates: " << Mat(overlapVertices) << std::endl;
+			//std::cout << "Overlap coordinates: " << Mat(overlapVertices) << std::endl;
 		} 
 		else
 		{
